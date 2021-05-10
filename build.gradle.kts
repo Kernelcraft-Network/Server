@@ -10,6 +10,7 @@ plugins {
     id("org.spongepowered.gradle.sponge.dev") apply false // for version json generation
     id("implementation-structure")
     id("org.jetbrains.gradle.plugin.idea-ext")
+    id("com.palantir.git-version") version "0.12.3"
 }
 
 val commonProject = project
@@ -25,13 +26,15 @@ val guavaVersion: String by project
 val junitVersion: String by project
 val timingsVersion: String by project
 
+val gitVersion: groovy.lang.Closure<String> by extra
+
 val commonManifest = the<JavaPluginConvention>().manifest {
     attributes(
         "Specification-Title" to "Sponge",
         "Specification-Vendor" to "SpongePowered",
         "Specification-Version" to apiVersion,
         "Implementation-Title" to project.name,
-        "Implementation-Version" to spongeImpl.generateImplementationVersionString(apiVersion, minecraftVersion, recommendedVersion),
+        "Implementation-Version" to gitVersion(),
         "Implementation-Vendor" to "SpongePowered"
     )
 }
@@ -71,7 +74,7 @@ tasks {
 
 }
 
-version = spongeImpl.generateImplementationVersionString(apiVersion, minecraftVersion, recommendedVersion)
+version = gitVersion()
 
 // Configurations
 val applaunchConfig by configurations.register("applaunch")
@@ -280,18 +283,6 @@ allprojects {
             }
             options.annotationProcessorPath = emptyAnnotationProcessors // hack so IntelliJ doesn't try to run Mixin AP
         }
-
-        withType(PublishToMavenRepository::class).configureEach {
-            onlyIf {
-                (repository == publishing.repositories["GitHubPackages"] &&
-                        !(rootProject.version as String).endsWith("-SNAPSHOT")) ||
-                        (!spongeSnapshotRepo.isNullOrBlank()
-                                && !spongeReleaseRepo.isNullOrBlank()
-                                && repository == publishing.repositories["spongeRepo"]
-                                && publication == publishing.publications["sponge"])
-
-            }
-        }
     }
     sourceSets.configureEach {
         val sourceSet = this
@@ -308,24 +299,10 @@ allprojects {
             repositories {
                 maven {
                     name = "GitHubPackages"
-                    this.url = uri("https://maven.pkg.github.com/SpongePowered/${rootProject.name}")
+                    this.url = uri("https://maven.pkg.github.com/${System.getenv("GITHUB_REPOSITORY")}")
                     credentials {
-                        username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_USERNAME")
+                        username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR")
                         password = project.findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN")
-                    }
-                }
-                // Set by the build server
-                maven {
-                    name = "spongeRepo"
-                    val repoUrl = if ((version as String).endsWith("-SNAPSHOT")) spongeSnapshotRepo else spongeReleaseRepo
-                    repoUrl?.apply {
-                        url = uri(this)
-                    }
-                    val spongeUsername: String? by project
-                    val spongePassword: String? by project
-                    credentials {
-                        username = spongeUsername ?: ""
-                        password = spongePassword ?: ""
                     }
                 }
             }

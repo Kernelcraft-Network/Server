@@ -5,8 +5,11 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ api-8 ]
-
+    branches: [ "*"]
+    tags-ignore: [ "*" ]
+  pull_request:
+  release:
+    types: [ released ]
 
 jobs:
   build:
@@ -41,19 +44,10 @@ jobs:
         run: ./gradlew -PenableTestPlugins=true build --stacktrace
         env:
           CI_SYSTEM: Github Actions
-      - name: Archive artifacts for build
+      - name: Server Jar
         uses: actions/upload-artifact@v2
         with:
-          name: Sponge Jars
-          path: |
-            ${{ github.workspace }}/SpongeAPI/build/libs/*.jar
-            ${{ github.workspace }}/build/libs/*.jar
-            ${{ github.workspace }}/vanilla/build/libs/*.jar
-            ${{ github.workspace }}/forge/build/libs/*.jar
-      - name: SpongeVanilla Production Jar
-        uses: actions/upload-artifact@v2
-        with:
-          name: SpongeVanilla Production Jar
+          name: Server Jar
           path: "${{ github.workspace }}/vanilla/build/libs/*-universal.jar"
   integrationTest:
     needs: build
@@ -81,7 +75,7 @@ jobs:
       - name: Download SpongeVanilla server
         uses: actions/download-artifact@v2
         with:
-          name: SpongeVanilla Production Jar
+          name: Server Jar
       - name: Run SpongeVanilla Test (windows)
         if: "runner.os == 'Windows'"
         run: java -jar $(gci | Where-Object NameString -Match "-universal.jar") --launchTarget sponge_server_it
